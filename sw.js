@@ -1,4 +1,4 @@
-const CACHE = "etiquetas-v2";
+const CACHE = "etiquetas-v3";
 const ARCHIVOS = [
     "./",
     "./index.html",
@@ -23,6 +23,9 @@ self.addEventListener("activate", event => {
 
 self.addEventListener("fetch", event => {
     if (event.request.method !== "GET") return;
+
+    // Los datos de Firebase siempre deben consultarse en red, no desde la caché de la app.
+    if (new URL(event.request.url).hostname.endsWith("firebaseio.com")) return;
 
     event.respondWith(
         caches.match(event.request).then(cached => cached || fetch(event.request).then(response => {
