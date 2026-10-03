@@ -1,4 +1,4 @@
-const CACHE = "etiquetas-v3";
+const CACHE = "etiquetas-v4";
 const ARCHIVOS = [
     "./",
     "./index.html",
