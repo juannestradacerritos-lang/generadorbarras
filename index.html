@@ -313,7 +313,22 @@
     <div id="area-impresion"></div>
 
     <script>
-        let lista = []; // Aquí guardaremos los productos
+        // Configuración de Firebase Realtime Database
+        const firebaseConfig = {
+            apiKey: "AIzaSyC4usCsv7vxYrqd_R3GefHecy1ZgPFivjU",
+            authDomain: "controlcilco.firebaseapp.com",
+            databaseURL: "https://controlcilco-default-rtdb.firebaseio.com",
+            projectId: "controlcilco",
+            storageBucket: "controlcilco.firebasestorage.app",
+            messagingSenderId: "952205287411",
+            appId: "1:952205287411:web:0b32d172dc34fde0f8bc86",
+            measurementId: "G-41GP05RMYB"
+        };
+
+        const URL_PRODUCTOS_NUBE = `${firebaseConfig.databaseURL}/etiquetas/productos.json`;
+        const CLAVE_CAMBIOS_PENDIENTES = "productosPendientesDeSincronizar";
+
+        let lista = []; // Copia local disponible incluso sin conexión
         try {
             const productosGuardados = JSON.parse(localStorage.getItem("productos"));
             if (Array.isArray(productosGuardados)) lista = productosGuardados;
@@ -323,6 +338,8 @@
 
         let productoEnEdicionId = null;
         let eventoInstalacion = null;
+        let guardadoEnCurso = false;
+        let repetirGuardado = false;
 
         const btnInstalar = document.getElementById("btnInstalar");
         const ayudaInstalacion = document.getElementById("ayudaInstalacion");
@@ -440,8 +457,69 @@
             actualizarTabla();
         }
 
-        function actualizarTabla() {
+        async function guardarEnLaNube() {
+            if (!navigator.onLine) return;
+            if (guardadoEnCurso) {
+                repetirGuardado = true;
+                return;
+            }
+
+            guardadoEnCurso = true;
+            const datosEnviados = JSON.stringify(lista);
+            try {
+                const respuesta = await fetch(URL_PRODUCTOS_NUBE, {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: datosEnviados
+                });
+                if (!respuesta.ok) throw new Error(`Firebase respondió ${respuesta.status}`);
+                if (datosEnviados === JSON.stringify(lista)) {
+                    localStorage.removeItem(CLAVE_CAMBIOS_PENDIENTES);
+                } else {
+                    repetirGuardado = true;
+                }
+            } catch (error) {
+                localStorage.setItem(CLAVE_CAMBIOS_PENDIENTES, "true");
+                console.warn("Los cambios siguen guardados localmente; se sincronizarán al volver la conexión.", error);
+            } finally {
+                guardadoEnCurso = false;
+                if (repetirGuardado) {
+                    repetirGuardado = false;
+                    guardarEnLaNube();
+                }
+            }
+        }
+
+        async function cargarDesdeLaNube() {
+            if (!navigator.onLine) return;
+
+            // Si hubo cambios offline, la copia local tiene prioridad.
+            if (localStorage.getItem(CLAVE_CAMBIOS_PENDIENTES) === "true") {
+                await guardarEnLaNube();
+                return;
+            }
+
+            try {
+                const respuesta = await fetch(URL_PRODUCTOS_NUBE, { cache: "no-store" });
+                if (!respuesta.ok) throw new Error(`Firebase respondió ${respuesta.status}`);
+                const productosNube = await respuesta.json();
+                if (Array.isArray(productosNube)) {
+                    lista = productosNube;
+                    actualizarTabla(false);
+                } else if (lista.length > 0) {
+                    await guardarEnLaNube();
+                }
+            } catch (error) {
+                console.warn("No se pudo cargar Firebase; se mantiene la copia local.", error);
+            }
+        }
+
+        function actualizarTabla(sincronizar = true) {
             localStorage.setItem("productos", JSON.stringify(lista));
+            if (sincronizar) {
+                localStorage.setItem(CLAVE_CAMBIOS_PENDIENTES, "true");
+                guardarEnLaNube();
+            }
 
             let tbody = document.getElementById("listaProductos");
             tbody.innerHTML = ""; // Limpiar tabla
@@ -463,7 +541,9 @@
             });
         }
 
-        actualizarTabla();
+        actualizarTabla(false);
+        cargarDesdeLaNube();
+        window.addEventListener("online", cargarDesdeLaNube);
 
         function prepararEImprimir() {
             if (lista.length === 0) {
