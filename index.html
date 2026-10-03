@@ -66,6 +66,18 @@
             border-bottom: 1px solid var(--borde);
         }
 
+        .opcion-variados {
+            grid-column: 1 / -1;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--texto-suave);
+            font-size: .9rem;
+            cursor: pointer;
+        }
+        .opcion-variados input { width: auto; }
+        .modal-contenido .opcion-variados { display: flex; margin-top: 16px; }
+
         input {
             width: 100%;
             min-width: 0;
@@ -264,6 +276,10 @@
                 <input type="text" id="nombreProducto" placeholder="Nombre del producto" aria-label="Nombre del producto">
                 <input type="number" id="cantidadImprimir" placeholder="Cantidad" value="1" min="1" aria-label="Cantidad">
                 <button onclick="agregarProducto()">Agregar producto</button>
+                <label class="opcion-variados">
+                    <input type="checkbox" id="codigosVariados">
+                    Generar un código diferente para cada etiqueta
+                </label>
             </div>
 
             <div class="tabla-contenedor">
@@ -300,6 +316,11 @@
 
                 <label for="editarCantidad">Cantidad de etiquetas</label>
                 <input type="number" id="editarCantidad" min="1" step="1" required>
+
+                <label class="opcion-variados">
+                    <input type="checkbox" id="editarCodigosVariados">
+                    Usar un código diferente para cada etiqueta
+                </label>
 
                 <div class="modal-acciones">
                     <button type="button" class="btn-cancelar" onclick="cerrarModalEdicion()">Cancelar</button>
@@ -379,6 +400,7 @@
         function agregarProducto() {
             let nombre = document.getElementById("nombreProducto").value;
             let cantidad = parseInt(document.getElementById("cantidadImprimir").value);
+            const codigosVariados = document.getElementById("codigosVariados").checked;
 
             if (nombre.trim() === "") {
                 alert("Por favor, ingresa el nombre del producto.");
@@ -389,11 +411,16 @@
                 return;
             }
 
+            const codigoPrincipal = generarNumeroUnico();
             let producto = {
                 id: Date.now(), // Identificador interno único
                 nombre: nombre,
-                codigo: generarNumeroUnico(),
-                cantidad: cantidad
+                codigo: codigoPrincipal,
+                cantidad: cantidad,
+                codigosVariados: codigosVariados,
+                codigos: codigosVariados
+                    ? Array.from({ length: cantidad }, (_, indice) => indice === 0 ? codigoPrincipal : generarNumeroUnico())
+                    : []
             };
 
             lista.push(producto);
@@ -402,6 +429,7 @@
             // Limpiar formulario para el siguiente
             document.getElementById("nombreProducto").value = "";
             document.getElementById("cantidadImprimir").value = "1";
+            document.getElementById("codigosVariados").checked = false;
             document.getElementById("nombreProducto").focus();
         }
 
@@ -413,6 +441,7 @@
             document.getElementById("editarNombre").value = producto.nombre;
             document.getElementById("editarCodigo").value = producto.codigo;
             document.getElementById("editarCantidad").value = producto.cantidad;
+            document.getElementById("editarCodigosVariados").checked = Boolean(producto.codigosVariados);
             document.getElementById("modalEdicion").classList.add("visible");
             document.getElementById("editarNombre").focus();
         }
@@ -431,6 +460,7 @@
             const nombre = document.getElementById("editarNombre").value.trim();
             const codigo = document.getElementById("editarCodigo").value.trim();
             const cantidad = Number(document.getElementById("editarCantidad").value);
+            const codigosVariados = document.getElementById("editarCodigosVariados").checked;
 
             if (!nombre || !codigo || !Number.isInteger(cantidad) || cantidad < 1) {
                 alert("Completa todos los campos y usa una cantidad entera de al menos 1.");
@@ -440,6 +470,16 @@
             producto.nombre = nombre;
             producto.codigo = codigo;
             producto.cantidad = cantidad;
+            producto.codigosVariados = codigosVariados;
+            if (codigosVariados) {
+                const codigosAnteriores = Array.isArray(producto.codigos) ? producto.codigos : [];
+                producto.codigos = Array.from(
+                    { length: cantidad },
+                    (_, indice) => indice === 0 ? codigo : (codigosAnteriores[indice] || generarNumeroUnico())
+                );
+            } else {
+                producto.codigos = [];
+            }
             actualizarTabla();
             cerrarModalEdicion();
         });
@@ -528,7 +568,7 @@
                 let fila = document.createElement("tr");
                 fila.innerHTML = `
                     <td>${prod.nombre}</td>
-                    <td><strong>${prod.codigo}</strong></td>
+                    <td><strong>${prod.codigo}</strong>${prod.codigosVariados ? `<br><small>+ ${Math.max(0, prod.cantidad - 1)} códigos diferentes</small>` : ""}</td>
                     <td>${prod.cantidad}</td>
                     <td>
                         <div class="acciones">
@@ -577,8 +617,14 @@
                     divEtiqueta.appendChild(svgCodigo);
                     areaImpresion.appendChild(divEtiqueta);
 
+                    // En modo variado, cada posición conserva su propio código.
+                    const codigoEtiqueta = prod.codigosVariados && Array.isArray(prod.codigos)
+                        ? (prod.codigos[i] || generarNumeroUnico())
+                        : prod.codigo;
+                    if (prod.codigosVariados && Array.isArray(prod.codigos)) prod.codigos[i] = codigoEtiqueta;
+
                     // Generar el código de barras real usando la librería
-                    JsBarcode("#" + svgId, prod.codigo, {
+                    JsBarcode("#" + svgId, codigoEtiqueta, {
                         format: "CODE128",
                         lineColor: "#000",
                         width: 1.5,
