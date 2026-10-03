@@ -1,0 +1,520 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Generador Masivo de Códigos de Barras</title>
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="Etiquetas">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="icon.svg" type="image/svg+xml">
+    <link rel="apple-touch-icon" href="icon.svg">
+    <script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.5/dist/JsBarcode.all.min.js"></script>
+    <style>
+        :root {
+            --fondo: #f5f7fa;
+            --superficie: #ffffff;
+            --texto: #172033;
+            --texto-suave: #667085;
+            --borde: #e4e7ec;
+            --primario: #2563eb;
+            --primario-hover: #1d4ed8;
+            --peligro: #dc2626;
+            --radio: 12px;
+        }
+
+        * { box-sizing: border-box; }
+
+        body {
+            margin: 0;
+            padding: 48px 20px;
+            color: var(--texto);
+            background: var(--fondo);
+            font-family: Inter, ui-sans-serif, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            line-height: 1.5;
+        }
+
+        .container {
+            width: min(100%, 960px);
+            margin: 0 auto;
+        }
+
+        .encabezado { margin-bottom: 28px; }
+        .encabezado h1 {
+            margin: 0 0 6px;
+            font-size: clamp(1.65rem, 4vw, 2.15rem);
+            line-height: 1.2;
+            letter-spacing: -0.035em;
+        }
+        .encabezado p { margin: 0; color: var(--texto-suave); }
+
+        .panel {
+            padding: 24px;
+            border: 1px solid var(--borde);
+            border-radius: var(--radio);
+            background: var(--superficie);
+            box-shadow: 0 1px 2px rgba(16, 24, 40, 0.04);
+        }
+
+        .formulario {
+            display: grid;
+            grid-template-columns: minmax(200px, 1fr) 130px auto;
+            gap: 12px;
+            padding-bottom: 24px;
+            border-bottom: 1px solid var(--borde);
+        }
+
+        input {
+            width: 100%;
+            min-width: 0;
+            padding: 11px 13px;
+            border: 1px solid #d0d5dd;
+            border-radius: 8px;
+            outline: none;
+            color: var(--texto);
+            background: white;
+            font: inherit;
+            transition: border-color .2s, box-shadow .2s;
+        }
+        input::placeholder { color: #98a2b3; }
+        input:focus {
+            border-color: var(--primario);
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
+        }
+
+        button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            gap: 7px;
+            padding: 11px 16px;
+            border: 1px solid transparent;
+            border-radius: 8px;
+            cursor: pointer;
+            color: white;
+            background: var(--primario);
+            font: inherit;
+            font-weight: 600;
+            white-space: nowrap;
+            transition: background .2s, border-color .2s, transform .1s;
+        }
+        button:hover { background: var(--primario-hover); }
+        button:active { transform: translateY(1px); }
+        button:focus-visible { outline: 3px solid rgba(37, 99, 235, .25); outline-offset: 2px; }
+
+        .tabla-contenedor { overflow-x: auto; margin-top: 8px; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td {
+            padding: 15px 12px;
+            border-bottom: 1px solid var(--borde);
+            text-align: left;
+            vertical-align: middle;
+        }
+        th {
+            color: var(--texto-suave);
+            font-size: .75rem;
+            font-weight: 600;
+            letter-spacing: .06em;
+            text-transform: uppercase;
+        }
+        td { font-size: .925rem; }
+        tbody tr:last-child td { border-bottom: 0; }
+        tbody tr:hover { background: #f9fafb; }
+
+        .acciones { display: flex; gap: 6px; }
+        .btn-editar, .btn-eliminar {
+            padding: 7px 10px;
+            border-color: var(--borde);
+            color: #344054;
+            background: white;
+            font-size: .82rem;
+        }
+        .btn-editar:hover { border-color: #cbd5e1; background: #f8fafc; }
+        .btn-eliminar { color: var(--peligro); }
+        .btn-eliminar:hover { border-color: #fecaca; background: #fef2f2; }
+        .btn-imprimir { width: 100%; margin-top: 20px; padding: 13px 18px; }
+        .btn-instalar {
+            display: none;
+            margin-top: 12px;
+            border-color: #bfdbfe;
+            color: var(--primario);
+            background: #eff6ff;
+        }
+        .btn-instalar:hover { background: #dbeafe; }
+        .btn-instalar.visible { display: inline-flex; }
+        .ayuda-instalacion {
+            margin: 12px 0 0;
+            color: var(--texto-suave);
+            font-size: .85rem;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 1000;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background: rgba(15, 23, 42, .55);
+            backdrop-filter: blur(3px);
+        }
+        .modal.visible { display: flex; }
+        .modal-contenido {
+            width: min(100%, 460px);
+            padding: 28px;
+            border: 1px solid var(--borde);
+            border-radius: 14px;
+            background: white;
+            box-shadow: 0 24px 48px rgba(15, 23, 42, .18);
+            animation: aparecer .18s ease-out;
+        }
+        @keyframes aparecer {
+            from { opacity: 0; transform: translateY(8px) scale(.98); }
+        }
+        .modal-contenido h3 { margin: 0 0 20px; font-size: 1.25rem; }
+        .modal-contenido label {
+            display: block;
+            margin: 14px 0 6px;
+            color: #344054;
+            font-size: .875rem;
+            font-weight: 600;
+        }
+        .modal-acciones { display: flex; justify-content: flex-end; gap: 10px; margin-top: 24px; }
+        .btn-cancelar { border-color: var(--borde); color: #344054; background: white; }
+        .btn-cancelar:hover { background: #f8fafc; }
+
+        #area-impresion { display: none; }
+
+        @media (max-width: 680px) {
+            body { padding: 28px 14px; }
+            .panel { padding: 16px; }
+            .formulario { grid-template-columns: 1fr; }
+            .formulario button { width: 100%; }
+            th, td { padding: 12px 9px; }
+            .acciones { flex-direction: column; }
+        }
+
+        @page {
+            size: Letter portrait;
+            margin: 0.3in;
+        }
+
+        @media print {
+            body {
+                margin: 0;
+                padding: 0;
+                background: white;
+            }
+            .container, .modal { display: none !important; }
+            #area-impresion {
+                display: grid !important;
+                grid-template-columns: repeat(5, 3.75cm);
+                grid-auto-rows: 4.3cm;
+                justify-content: center;
+                gap: 0.08cm;
+                width: 100%;
+            }
+            .etiqueta {
+                display: flex;
+                width: 3.75cm;
+                height: 4.3cm;
+                padding: 0.12cm;
+                border: 1px dashed #9ca3af;
+                border-radius: 0;
+                align-items: center;
+                flex-direction: column;
+                justify-content: center;
+                overflow: hidden;
+                text-align: center;
+                break-inside: avoid;
+                page-break-inside: avoid;
+            }
+            .etiqueta-nombre {
+                width: 100%;
+                margin-bottom: 0.02cm;
+                overflow: hidden;
+                font-size: 13px;
+                font-weight: 700;
+                line-height: 1.2;
+                text-overflow: ellipsis;
+                white-space: nowrap;
+            }
+            .etiqueta svg {
+                display: block;
+                max-width: 100%;
+                height: auto;
+                overflow: visible;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <main class="container" id="interfaz">
+        <header class="encabezado">
+            <h1>Etiquetas de productos</h1>
+            <p>Crea, organiza e imprime códigos de barras fácilmente.</p>
+        </header>
+
+        <section class="panel" aria-label="Gestión de etiquetas">
+            <div class="formulario">
+                <input type="text" id="nombreProducto" placeholder="Nombre del producto" aria-label="Nombre del producto">
+                <input type="number" id="cantidadImprimir" placeholder="Cantidad" value="1" min="1" aria-label="Cantidad">
+                <button onclick="agregarProducto()">Agregar producto</button>
+            </div>
+
+            <div class="tabla-contenedor">
+                <table>
+                    <thead>
+                        <tr>
+                            <th>Producto</th>
+                            <th>Código</th>
+                            <th>Cantidad</th>
+                            <th>Acciones</th>
+                        </tr>
+                    </thead>
+                    <tbody id="listaProductos">
+                        <!-- Aquí se irán agregando los productos -->
+                    </tbody>
+                </table>
+            </div>
+
+            <button class="btn-imprimir" onclick="prepararEImprimir()">Imprimir etiquetas</button>
+            <button class="btn-instalar" id="btnInstalar" type="button">Instalar aplicación</button>
+            <p class="ayuda-instalacion" id="ayudaInstalacion">En el teléfono puedes imprimir mediante el menú de impresión del navegador.</p>
+        </section>
+    </main>
+
+    <div class="modal" id="modalEdicion" role="dialog" aria-modal="true" aria-labelledby="tituloEdicion">
+        <div class="modal-contenido">
+            <h3 id="tituloEdicion">Editar producto</h3>
+            <form id="formularioEdicion">
+                <label for="editarNombre">Nombre del producto</label>
+                <input type="text" id="editarNombre" required>
+
+                <label for="editarCodigo">Código de barras</label>
+                <input type="text" id="editarCodigo" required>
+
+                <label for="editarCantidad">Cantidad de etiquetas</label>
+                <input type="number" id="editarCantidad" min="1" step="1" required>
+
+                <div class="modal-acciones">
+                    <button type="button" class="btn-cancelar" onclick="cerrarModalEdicion()">Cancelar</button>
+                    <button type="submit">Guardar cambios</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Contenedor que solo se verá al imprimir -->
+    <div id="area-impresion"></div>
+
+    <script>
+        let lista = []; // Aquí guardaremos los productos
+        try {
+            const productosGuardados = JSON.parse(localStorage.getItem("productos"));
+            if (Array.isArray(productosGuardados)) lista = productosGuardados;
+        } catch (error) {
+            console.warn("No se pudieron recuperar los productos guardados.", error);
+        }
+
+        let productoEnEdicionId = null;
+        let eventoInstalacion = null;
+
+        const btnInstalar = document.getElementById("btnInstalar");
+        const ayudaInstalacion = document.getElementById("ayudaInstalacion");
+
+        window.addEventListener("beforeinstallprompt", event => {
+            event.preventDefault();
+            eventoInstalacion = event;
+            btnInstalar.classList.add("visible");
+        });
+
+        btnInstalar.addEventListener("click", async () => {
+            if (!eventoInstalacion) return;
+            eventoInstalacion.prompt();
+            await eventoInstalacion.userChoice;
+            eventoInstalacion = null;
+            btnInstalar.classList.remove("visible");
+        });
+
+        window.addEventListener("appinstalled", () => {
+            btnInstalar.classList.remove("visible");
+            ayudaInstalacion.textContent = "Aplicación instalada. Puedes abrirla desde tu pantalla de inicio.";
+        });
+
+        if (/iPad|iPhone|iPod/.test(navigator.userAgent)) {
+            ayudaInstalacion.textContent = "En iPhone: abre Compartir y elige “Agregar a pantalla de inicio”. También puedes imprimir desde Compartir > Imprimir.";
+        }
+
+        if ("serviceWorker" in navigator) {
+            window.addEventListener("load", () => navigator.serviceWorker.register("sw.js"));
+        }
+
+        // Función para generar un número aleatorio de 12 dígitos
+        function generarNumeroUnico() {
+            return Math.floor(100000000000 + Math.random() * 900000000000).toString();
+        }
+
+        function agregarProducto() {
+            let nombre = document.getElementById("nombreProducto").value;
+            let cantidad = parseInt(document.getElementById("cantidadImprimir").value);
+
+            if (nombre.trim() === "") {
+                alert("Por favor, ingresa el nombre del producto.");
+                return;
+            }
+            if (cantidad < 1 || isNaN(cantidad)) {
+                alert("La cantidad debe ser al menos 1.");
+                return;
+            }
+
+            let producto = {
+                id: Date.now(), // Identificador interno único
+                nombre: nombre,
+                codigo: generarNumeroUnico(),
+                cantidad: cantidad
+            };
+
+            lista.push(producto);
+            actualizarTabla();
+
+            // Limpiar formulario para el siguiente
+            document.getElementById("nombreProducto").value = "";
+            document.getElementById("cantidadImprimir").value = "1";
+            document.getElementById("nombreProducto").focus();
+        }
+
+        function editarProducto(id) {
+            const producto = lista.find(prod => prod.id === id);
+            if (!producto) return;
+
+            productoEnEdicionId = id;
+            document.getElementById("editarNombre").value = producto.nombre;
+            document.getElementById("editarCodigo").value = producto.codigo;
+            document.getElementById("editarCantidad").value = producto.cantidad;
+            document.getElementById("modalEdicion").classList.add("visible");
+            document.getElementById("editarNombre").focus();
+        }
+
+        function cerrarModalEdicion() {
+            document.getElementById("modalEdicion").classList.remove("visible");
+            productoEnEdicionId = null;
+        }
+
+        document.getElementById("formularioEdicion").addEventListener("submit", function(event) {
+            event.preventDefault();
+
+            const producto = lista.find(prod => prod.id === productoEnEdicionId);
+            if (!producto) return cerrarModalEdicion();
+
+            const nombre = document.getElementById("editarNombre").value.trim();
+            const codigo = document.getElementById("editarCodigo").value.trim();
+            const cantidad = Number(document.getElementById("editarCantidad").value);
+
+            if (!nombre || !codigo || !Number.isInteger(cantidad) || cantidad < 1) {
+                alert("Completa todos los campos y usa una cantidad entera de al menos 1.");
+                return;
+            }
+
+            producto.nombre = nombre;
+            producto.codigo = codigo;
+            producto.cantidad = cantidad;
+            actualizarTabla();
+            cerrarModalEdicion();
+        });
+
+        document.getElementById("modalEdicion").addEventListener("click", function(event) {
+            if (event.target === this) cerrarModalEdicion();
+        });
+
+        document.addEventListener("keydown", function(event) {
+            if (event.key === "Escape") cerrarModalEdicion();
+        });
+
+        function eliminarProducto(id) {
+            lista = lista.filter(prod => prod.id !== id);
+            actualizarTabla();
+        }
+
+        function actualizarTabla() {
+            localStorage.setItem("productos", JSON.stringify(lista));
+
+            let tbody = document.getElementById("listaProductos");
+            tbody.innerHTML = ""; // Limpiar tabla
+
+            lista.forEach(prod => {
+                let fila = document.createElement("tr");
+                fila.innerHTML = `
+                    <td>${prod.nombre}</td>
+                    <td><strong>${prod.codigo}</strong></td>
+                    <td>${prod.cantidad}</td>
+                    <td>
+                        <div class="acciones">
+                            <button class="btn-editar" onclick="editarProducto(${prod.id})">Editar</button>
+                            <button class="btn-eliminar" onclick="eliminarProducto(${prod.id})">Eliminar</button>
+                        </div>
+                    </td>
+                `;
+                tbody.appendChild(fila);
+            });
+        }
+
+        actualizarTabla();
+
+        function prepararEImprimir() {
+            if (lista.length === 0) {
+                alert("No hay productos en la lista para imprimir.");
+                return;
+            }
+
+            let areaImpresion = document.getElementById("area-impresion");
+            areaImpresion.innerHTML = ""; // Limpiar impresiones anteriores
+
+            // Recorrer la lista y generar las etiquetas según la cantidad
+            lista.forEach(prod => {
+                for (let i = 0; i < prod.cantidad; i++) {
+                    
+                    // Crear el contenedor de la etiqueta
+                    let divEtiqueta = document.createElement("div");
+                    divEtiqueta.className = "etiqueta";
+
+                    // Crear el texto del nombre
+                    let divNombre = document.createElement("div");
+                    divNombre.className = "etiqueta-nombre";
+                    divNombre.innerText = prod.nombre;
+
+                    // Crear el elemento SVG para el código de barras
+                    let svgCodigo = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+                    let svgId = "barcode-" + prod.id + "-" + i;
+                    svgCodigo.id = svgId;
+
+                    // Ensamblar
+                    divEtiqueta.appendChild(divNombre);
+                    divEtiqueta.appendChild(svgCodigo);
+                    areaImpresion.appendChild(divEtiqueta);
+
+                    // Generar el código de barras real usando la librería
+                    JsBarcode("#" + svgId, prod.codigo, {
+                        format: "CODE128",
+                        lineColor: "#000",
+                        width: 1.5,
+                        height: 50,
+                        displayValue: true,
+                        fontSize: 14,
+                        textMargin: 2,
+                        margin: 0,
+                        marginBottom: 3
+                    });
+                }
+            });
+
+            // Llamar a la ventana de impresión de Windows/Mac
+            window.print();
+        }
+    </script>
+</body>
+</html>
