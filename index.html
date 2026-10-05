@@ -78,7 +78,7 @@
         .opcion-variados input { width: auto; }
         .modal-contenido .opcion-variados { display: flex; margin-top: 16px; }
 
-        input {
+        input, select {
             width: 100%;
             min-width: 0;
             padding: 11px 13px;
@@ -91,10 +91,25 @@
             transition: border-color .2s, box-shadow .2s;
         }
         input::placeholder { color: #98a2b3; }
-        input:focus {
+        input:focus, select:focus {
             border-color: var(--primario);
             box-shadow: 0 0 0 3px rgba(37, 99, 235, .12);
         }
+
+        .configuracion-impresion {
+            display: grid;
+            grid-template-columns: minmax(180px, 1fr) repeat(2, 130px);
+            gap: 12px;
+            padding: 20px 0 12px;
+        }
+        .campo-configuracion label {
+            display: block;
+            margin-bottom: 6px;
+            color: var(--texto-suave);
+            font-size: .8rem;
+            font-weight: 600;
+        }
+        .medida-termica.oculta { display: none; }
 
         button {
             display: inline-flex;
@@ -203,7 +218,7 @@
         @media (max-width: 680px) {
             body { padding: 28px 14px; }
             .panel { padding: 16px; }
-            .formulario { grid-template-columns: 1fr; }
+            .formulario, .configuracion-impresion { grid-template-columns: 1fr; }
             .formulario button { width: 100%; }
             th, td { padding: 12px 9px; }
             .acciones { flex-direction: column; }
@@ -223,19 +238,20 @@
             .container, .modal { display: none !important; }
             #area-impresion {
                 display: grid !important;
-                grid-template-columns: repeat(5, 3.75cm);
-                grid-auto-rows: 4.3cm;
+                grid-template-columns: repeat(8, 2.5cm);
+                grid-auto-rows: 1.8cm;
                 justify-content: center;
-                gap: 0.08cm;
+                gap: 0;
                 width: 100%;
             }
             .etiqueta {
+                position: relative;
                 display: flex;
-                width: 3.75cm;
-                height: 4.3cm;
-                padding: 0.12cm;
-                border: 1px dashed #9ca3af;
-                border-radius: 0;
+                width: 2.5cm;
+                height: 1.8cm;
+                padding: 0;
+                border-right: 1px dashed #9ca3af;
+                border-left: 1px dashed #9ca3af;
                 align-items: center;
                 flex-direction: column;
                 justify-content: center;
@@ -244,13 +260,24 @@
                 break-inside: avoid;
                 page-break-inside: avoid;
             }
+            .etiqueta-contenido {
+                display: flex;
+                width: 100%;
+                height: 100%;
+                padding-inline: 1.5mm;
+                border-top: 1px dashed #9ca3af;
+                border-bottom: 1px dashed #9ca3af;
+                align-items: center;
+                flex-direction: column;
+                justify-content: center;
+            }
             .etiqueta-nombre {
                 width: 100%;
-                margin-bottom: 0.02cm;
+                margin-bottom: 0;
                 overflow: hidden;
                 font-size: 13px;
                 font-weight: 700;
-                line-height: 1.2;
+                line-height: 1.1;
                 text-overflow: ellipsis;
                 white-space: nowrap;
             }
@@ -259,6 +286,26 @@
                 max-width: 100%;
                 height: auto;
                 overflow: visible;
+            }
+
+            body.impresion-termica #area-impresion {
+                display: block !important;
+                width: var(--ancho-etiqueta);
+            }
+            body.impresion-termica .etiqueta {
+                width: var(--ancho-etiqueta);
+                height: var(--alto-etiqueta);
+                border: 0;
+                break-after: page;
+                page-break-after: always;
+            }
+            body.impresion-termica .etiqueta:last-child {
+                break-after: auto;
+                page-break-after: auto;
+            }
+            body.impresion-termica .etiqueta-contenido {
+                padding-inline: 2mm;
+                border: 0;
             }
         }
     </style>
@@ -296,6 +343,24 @@
                         <!-- Aquí se irán agregando los productos -->
                     </tbody>
                 </table>
+            </div>
+
+            <div class="configuracion-impresion">
+                <div class="campo-configuracion">
+                    <label for="tipoImpresora">Formato de impresión</label>
+                    <select id="tipoImpresora" onchange="actualizarOpcionesImpresion()">
+                        <option value="carta">Hoja Carta (formato actual)</option>
+                        <option value="termica">Impresora térmica / pequeña</option>
+                    </select>
+                </div>
+                <div class="campo-configuracion medida-termica oculta">
+                    <label for="anchoEtiqueta">Ancho (mm)</label>
+                    <input type="number" id="anchoEtiqueta" value="25" min="10" max="200" step="0.1">
+                </div>
+                <div class="campo-configuracion medida-termica oculta">
+                    <label for="altoEtiqueta">Alto (mm)</label>
+                    <input type="number" id="altoEtiqueta" value="18" min="10" max="300" step="0.1">
+                </div>
             </div>
 
             <button class="btn-imprimir" onclick="prepararEImprimir()">Imprimir etiquetas</button>
@@ -364,6 +429,41 @@
 
         const btnInstalar = document.getElementById("btnInstalar");
         const ayudaInstalacion = document.getElementById("ayudaInstalacion");
+        const estiloPaginaTermica = document.createElement("style");
+        document.head.appendChild(estiloPaginaTermica);
+
+        function actualizarOpcionesImpresion() {
+            const esTermica = document.getElementById("tipoImpresora").value === "termica";
+            document.querySelectorAll(".medida-termica").forEach(campo => {
+                campo.classList.toggle("oculta", !esTermica);
+            });
+        }
+
+        function configurarFormatoImpresion() {
+            const esTermica = document.getElementById("tipoImpresora").value === "termica";
+            document.body.classList.toggle("impresion-termica", esTermica);
+
+            if (!esTermica) {
+                estiloPaginaTermica.textContent = "";
+                document.body.style.removeProperty("--ancho-etiqueta");
+                document.body.style.removeProperty("--alto-etiqueta");
+                return true;
+            }
+
+            const ancho = Number(document.getElementById("anchoEtiqueta").value);
+            const alto = Number(document.getElementById("altoEtiqueta").value);
+            if (!Number.isFinite(ancho) || !Number.isFinite(alto) || ancho < 10 || alto < 10) {
+                alert("Indica un ancho y alto válidos de al menos 10 mm.");
+                return false;
+            }
+
+            document.body.style.setProperty("--ancho-etiqueta", `${ancho}mm`);
+            document.body.style.setProperty("--alto-etiqueta", `${alto}mm`);
+            estiloPaginaTermica.textContent = `@media print { @page { size: ${ancho}mm ${alto}mm; margin: 0; } }`;
+            return true;
+        }
+
+        actualizarOpcionesImpresion();
 
         window.addEventListener("beforeinstallprompt", event => {
             event.preventDefault();
@@ -590,6 +690,7 @@
                 alert("No hay productos en la lista para imprimir.");
                 return;
             }
+            if (!configurarFormatoImpresion()) return;
 
             let areaImpresion = document.getElementById("area-impresion");
             areaImpresion.innerHTML = ""; // Limpiar impresiones anteriores
@@ -612,9 +713,13 @@
                     let svgId = "barcode-" + prod.id + "-" + i;
                     svgCodigo.id = svgId;
 
-                    // Ensamblar
-                    divEtiqueta.appendChild(divNombre);
-                    divEtiqueta.appendChild(svgCodigo);
+                    // Agrupar el contenido para que las líneas de corte queden pegadas
+                    // al nombre y al número generado por el código de barras.
+                    let divContenido = document.createElement("div");
+                    divContenido.className = "etiqueta-contenido";
+                    divContenido.appendChild(divNombre);
+                    divContenido.appendChild(svgCodigo);
+                    divEtiqueta.appendChild(divContenido);
                     areaImpresion.appendChild(divEtiqueta);
 
                     // En modo variado, cada posición conserva su propio código.
@@ -628,12 +733,11 @@
                         format: "CODE128",
                         lineColor: "#000",
                         width: 1.5,
-                        height: 50,
+                        height: 36,
                         displayValue: true,
-                        fontSize: 14,
-                        textMargin: 2,
-                        margin: 0,
-                        marginBottom: 3
+                        fontSize: 11,
+                        textMargin: 0,
+                        margin: 0
                     });
                 }
             });
